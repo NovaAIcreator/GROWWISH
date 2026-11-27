@@ -1,0 +1,6 @@
+{
+  "name": "GrowWish – Plantable Seed Paper Cards",
+  "description": "Handmade plantable seed paper cards by GrowWish. Plant it, water it, watch it grow. Gift growth, not waste.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

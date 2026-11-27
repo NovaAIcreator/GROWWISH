@@ -1,0 +1,467 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered customer account synced on Google Sign-In, including admin-managed temporary ban enforcement and fake-payment strike counter.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"]
+        },
+        "loginCount": {
+          "type": "integer"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 18
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "bannedUntil": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Nullable timestamp until which the user account is temporarily banned from placing orders."
+        },
+        "banReason": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "fakePaymentStrikes": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "photoURL",
+        "role",
+        "loginCount",
+        "phone",
+        "address",
+        "createdAt",
+        "lastLoginAt",
+        "updatedAt"
+      ]
+    },
+    "LoginLog": {
+      "title": "LoginLog",
+      "description": "Immutable login activity event recorded when a user signs in. Strictly admin-readable.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "userAgent": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "photoURL",
+        "userAgent",
+        "createdAt"
+      ]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order record containing delivery PII, optional linked userId, UPI UTR verification, fake-payment reason, and customer-visible tracking note.",
+      "type": "object",
+      "properties": {
+        "orderCode": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 24,
+          "pattern": "^GW-[A-Z0-9]{4,12}$"
+        },
+        "userId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "userEmail": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "design": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "enum": [
+            "Wildflower Thank You",
+            "Thank You For Helping Me Grow",
+            "Happy Birthday Blooms",
+            "Mixed"
+          ]
+        },
+        "product": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "enum": [
+            "Seed Paper – Pack of 5",
+            "Seed Paper – Pack of 10",
+            "Seed Paper – Pack of 25"
+          ]
+        },
+        "qty": {
+          "type": "integer"
+        },
+        "unitPrice": {
+          "type": "integer"
+        },
+        "totalAmount": {
+          "type": "integer"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["upi", "cod"]
+        },
+        "upiId": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "utrNumber": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9]{0,32}$"
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["pending_verification", "verified", "fake", "cod", "failed"]
+        },
+        "paymentReason": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "trackingNote": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "orderStatus": {
+          "type": "string",
+          "enum": ["new", "confirmed", "packed", "shipped", "delivered", "cancelled"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 18,
+          "pattern": "^[0-9+\\s\\-]{10,18}$"
+        },
+        "address": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 500
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "adminNote": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "orderCode",
+        "userId",
+        "userEmail",
+        "design",
+        "product",
+        "qty",
+        "unitPrice",
+        "totalAmount",
+        "paymentMethod",
+        "upiId",
+        "utrNumber",
+        "paymentStatus",
+        "orderStatus",
+        "name",
+        "phone",
+        "address",
+        "message",
+        "adminNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OrderStatus": {
+      "title": "OrderStatus",
+      "description": "Public non-PII live tracking projection synchronized atomically with Order, including payment verification outcome and courier tracking updates.",
+      "type": "object",
+      "properties": {
+        "orderCode": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 24,
+          "pattern": "^GW-[A-Z0-9]{4,12}$"
+        },
+        "design": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "enum": [
+            "Wildflower Thank You",
+            "Thank You For Helping Me Grow",
+            "Happy Birthday Blooms",
+            "Mixed"
+          ]
+        },
+        "product": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "enum": [
+            "Seed Paper – Pack of 5",
+            "Seed Paper – Pack of 10",
+            "Seed Paper – Pack of 25"
+          ]
+        },
+        "qty": {
+          "type": "integer"
+        },
+        "totalAmount": {
+          "type": "integer"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["upi", "cod"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["pending_verification", "verified", "fake", "cod", "failed"]
+        },
+        "paymentReason": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "trackingNote": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "orderStatus": {
+          "type": "string",
+          "enum": ["new", "confirmed", "packed", "shipped", "delivered", "cancelled"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "orderCode",
+        "design",
+        "product",
+        "qty",
+        "totalAmount",
+        "paymentMethod",
+        "paymentStatus",
+        "orderStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer plantable card review moderated by admin before public display.",
+      "type": "object",
+      "properties": {
+        "rating": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "review": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 1000
+        },
+        "photoName": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "approved": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "rating",
+        "name",
+        "review",
+        "photoName",
+        "approved",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Customer feedback, complaint, or bulk corporate order inquiry.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["Suggestion", "Bulk / Corporate", "Complaint", "Other"]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 1500
+        },
+        "contact": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "resolved"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "type",
+        "message",
+        "contact",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized store administrator document keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "addedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Registered customer profiles with login count, saved delivery details, and admin-managed temporary ban enforcement."
+    },
+    "/login_logs/{logId}": {
+      "schema": { "$ref": "#/entities/LoginLog" },
+      "description": "Immutable sign-in audit events for admin analytics."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer orders linked optionally to userId, readable by owning user or verified admins."
+    },
+    "/order_status/{orderId}": {
+      "schema": { "$ref": "#/entities/OrderStatus" },
+      "description": "Public non-PII live order tracking records synchronized atomically with /orders/{orderId}."
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Customer reviews; only approved reviews are publicly readable."
+    },
+    "/feedback/{feedbackId}": {
+      "schema": { "$ref": "#/entities/Feedback" },
+      "description": "Private feedback and bulk corporate order inquiries."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Additional authorized admin UIDs managed exclusively by admins."
+    }
+  }
+}

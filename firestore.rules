@@ -1,0 +1,402 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidOrderCode(code) {
+      return code is string && code.size() >= 6 && code.size() <= 24 && code.matches('^GW-[A-Z0-9]{4,12}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser()
+        && (
+          request.auth.token.email == 'rd354856@gmail.com'
+          || exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        );
+    }
+
+    function isUserBanned(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid))
+        && ('bannedUntil' in get(/databases/$(database)/documents/users/$(uid)).data)
+        && get(/databases/$(database)/documents/users/$(uid)).data.bannedUntil is timestamp
+        && get(/databases/$(database)/documents/users/$(uid)).data.bannedUntil > request.time;
+    }
+
+    function isValidCatalogPrice(product, unitPrice) {
+      return (product == 'Seed Paper – Pack of 5' && unitPrice == 149)
+        || (product == 'Seed Paper – Pack of 10' && unitPrice == 269)
+        || (product == 'Seed Paper – Pack of 25' && unitPrice == 599);
+    }
+
+    function isValidDesign(design) {
+      return design is string && design.size() >= 2 && design.size() <= 80 && design in [
+        'Wildflower Thank You',
+        'Thank You For Helping Me Grow',
+        'Happy Birthday Blooms',
+        'Mixed'
+      ];
+    }
+
+    function isValidProduct(product) {
+      return product is string && product.size() >= 2 && product.size() <= 80 && product in [
+        'Seed Paper – Pack of 5',
+        'Seed Paper – Pack of 10',
+        'Seed Paper – Pack of 25'
+      ];
+    }
+
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'photoURL', 'role',
+          'loginCount', 'phone', 'address', 'createdAt', 'lastLoginAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'photoURL', 'role',
+          'loginCount', 'phone', 'address', 'bannedUntil', 'banReason', 'fakePaymentStrikes',
+          'createdAt', 'lastLoginAt', 'updatedAt'
+        ])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid == uid
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 160
+        && data.displayName is string && data.displayName.size() <= 120
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && data.role is string && data.role.size() >= 2 && data.role.size() <= 16 && data.role in ['user', 'admin']
+        && data.loginCount is int && data.loginCount >= 1 && data.loginCount <= 100000
+        && data.phone is string && data.phone.size() <= 18
+        && data.address is string && data.address.size() <= 500
+        && (!('bannedUntil' in data) || data.bannedUntil == null || data.bannedUntil is timestamp)
+        && (!('banReason' in data) || (data.banReason is string && data.banReason.size() <= 240))
+        && (!('fakePaymentStrikes' in data) || (data.fakePaymentStrikes is int && data.fakePaymentStrikes >= 0 && data.fakePaymentStrikes <= 1000))
+        && data.createdAt is timestamp
+        && data.lastLoginAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLoginLog(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'userAgent', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'userAgent', 'createdAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 160
+        && data.displayName is string && data.displayName.size() <= 120
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && data.userAgent is string && data.userAgent.size() <= 240
+        && data.createdAt is timestamp;
+    }
+
+    function isValidOrder(data, orderId) {
+      return data.keys().hasAll([
+          'orderCode', 'userId', 'userEmail', 'design', 'product', 'qty', 'unitPrice', 'totalAmount',
+          'paymentMethod', 'upiId', 'utrNumber', 'paymentStatus', 'orderStatus',
+          'name', 'phone', 'address', 'message', 'adminNote', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'orderCode', 'userId', 'userEmail', 'design', 'product', 'qty', 'unitPrice', 'totalAmount',
+          'paymentMethod', 'upiId', 'utrNumber', 'paymentStatus', 'paymentReason', 'trackingNote',
+          'orderStatus', 'name', 'phone', 'address', 'message', 'adminNote', 'createdAt', 'updatedAt'
+        ])
+        && isValidOrderCode(data.orderCode)
+        && data.orderCode == orderId
+        && data.userId is string && data.userId.size() <= 128
+        && data.userEmail is string && data.userEmail.size() <= 160
+        && isValidDesign(data.design)
+        && isValidProduct(data.product)
+        && data.qty is int && data.qty >= 1 && data.qty <= 999
+        && data.unitPrice is int && isValidCatalogPrice(data.product, data.unitPrice)
+        && data.totalAmount is int && data.totalAmount == data.unitPrice * data.qty
+        && data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 10
+        && data.paymentMethod in ['upi', 'cod']
+        && data.upiId is string && data.upiId.size() <= 80
+        && data.utrNumber is string && data.utrNumber.size() <= 32 && data.utrNumber.matches('^[a-zA-Z0-9]{0,32}$')
+        && data.paymentStatus is string && data.paymentStatus.size() >= 2 && data.paymentStatus.size() <= 24
+        && data.paymentStatus in ['pending_verification', 'verified', 'fake', 'cod', 'failed']
+        && (!('paymentReason' in data) || (data.paymentReason is string && data.paymentReason.size() <= 240))
+        && (!('trackingNote' in data) || (data.trackingNote is string && data.trackingNote.size() <= 240))
+        && data.orderStatus is string && data.orderStatus.size() >= 2 && data.orderStatus.size() <= 20
+        && data.orderStatus in ['new', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled']
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.phone is string && data.phone.size() >= 10 && data.phone.size() <= 18
+        && data.phone.matches('^[0-9+\\s\\-]{10,18}$')
+        && data.address is string && data.address.size() >= 5 && data.address.size() <= 500
+        && data.message is string && data.message.size() <= 400
+        && data.adminNote is string && data.adminNote.size() <= 400
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOrderStatus(data, orderId) {
+      return data.keys().hasAll([
+          'orderCode', 'design', 'product', 'qty', 'totalAmount',
+          'paymentMethod', 'paymentStatus', 'orderStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'orderCode', 'design', 'product', 'qty', 'totalAmount',
+          'paymentMethod', 'paymentStatus', 'paymentReason', 'trackingNote',
+          'orderStatus', 'createdAt', 'updatedAt'
+        ])
+        && isValidOrderCode(data.orderCode)
+        && data.orderCode == orderId
+        && isValidDesign(data.design)
+        && isValidProduct(data.product)
+        && data.qty is int && data.qty >= 1 && data.qty <= 999
+        && data.totalAmount is int && data.totalAmount >= 149 && data.totalAmount <= 599000
+        && data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 10
+        && data.paymentMethod in ['upi', 'cod']
+        && data.paymentStatus is string && data.paymentStatus.size() >= 2 && data.paymentStatus.size() <= 24
+        && data.paymentStatus in ['pending_verification', 'verified', 'fake', 'cod', 'failed']
+        && (!('paymentReason' in data) || (data.paymentReason is string && data.paymentReason.size() <= 240))
+        && (!('trackingNote' in data) || (data.trackingNote is string && data.trackingNote.size() <= 240))
+        && data.orderStatus is string && data.orderStatus.size() >= 2 && data.orderStatus.size() <= 20
+        && data.orderStatus in ['new', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['rating', 'name', 'review', 'photoName', 'approved', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['rating', 'name', 'review', 'photoName', 'approved', 'createdAt', 'updatedAt'])
+        && data.rating is int && data.rating >= 1 && data.rating <= 5
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.review is string && data.review.size() >= 3 && data.review.size() <= 1000
+        && data.photoName is string && data.photoName.size() <= 160
+        && data.approved is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['type', 'message', 'contact', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['type', 'message', 'contact', 'status', 'createdAt', 'updatedAt'])
+        && data.type is string && data.type.size() >= 2 && data.type.size() <= 40
+        && data.type in ['Suggestion', 'Bulk / Corporate', 'Complaint', 'Other']
+        && data.message is string && data.message.size() >= 3 && data.message.size() <= 1500
+        && data.contact is string && data.contact.size() <= 120
+        && data.status is string && data.status.size() >= 2 && data.status.size() <= 20
+        && data.status in ['open', 'resolved']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'addedAt'])
+        && data.keys().hasOnly(['email', 'addedAt'])
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 160
+        && data.addedAt is timestamp;
+    }
+
+    // Registered user profiles (strictly owner or admin; ban & role fields strictly admin-only)
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(uid)
+        && isOwner(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().email == request.auth.token.email
+        && incoming().role == 'user'
+        && incoming().loginCount == 1
+        && (!('bannedUntil' in incoming()) || incoming().bannedUntil == null)
+        && (!('banReason' in incoming()) || incoming().banReason == '')
+        && (!('fakePaymentStrikes' in incoming()) || incoming().fakePaymentStrikes == 0)
+        && incoming().createdAt == request.time
+        && incoming().lastLoginAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (incoming().lastLoginAt == existing().lastLoginAt || incoming().lastLoginAt == request.time)
+        && (
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'role', 'bannedUntil', 'banReason', 'fakePaymentStrikes', 'updatedAt'
+            ])
+          )
+          || (
+            isOwner(uid)
+            && incoming().role == existing().role
+            && incoming().loginCount >= existing().loginCount
+            && incoming().loginCount <= existing().loginCount + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'photoURL', 'phone', 'address', 'loginCount', 'lastLoginAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    // Immutable login audit log (users can only log their own verified sign-in; only admins can read)
+    match /login_logs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidLoginLog(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(logId) && isAdmin();
+    }
+
+    // Customer orders (PII strictly readable by owning signed-in user or verified admin; banned users blocked)
+    match /orders/{orderId} {
+      allow get: if isValidOrderCode(orderId) && (
+        isAdmin()
+        || (isVerifiedUser() && existing().userId == request.auth.uid)
+      );
+      allow list: if isAdmin() || (
+        isVerifiedUser() && resource.data.userId == request.auth.uid
+      );
+      allow create: if isValidOrderCode(orderId)
+        && isValidOrder(incoming(), orderId)
+        && (
+          (incoming().userId == '' && incoming().userEmail == '' && !isSignedIn())
+          || (
+            isVerifiedUser()
+            && incoming().userId == request.auth.uid
+            && incoming().userEmail == request.auth.token.email
+            && !isUserBanned(request.auth.uid)
+          )
+        )
+        && incoming().orderStatus == 'new'
+        && incoming().adminNote == ''
+        && (!('paymentReason' in incoming()) || incoming().paymentReason == '')
+        && (!('trackingNote' in incoming()) || incoming().trackingNote == '')
+        && (
+          (incoming().paymentMethod == 'upi' && incoming().paymentStatus == 'pending_verification' && incoming().upiId == '8287572661@fam')
+          || (incoming().paymentMethod == 'cod' && incoming().paymentStatus == 'cod' && incoming().utrNumber == '')
+        )
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/order_status/$(orderId));
+      allow update: if isValidOrderCode(orderId)
+        && isValidOrder(incoming(), orderId)
+        && isAdmin()
+        && incoming().orderCode == existing().orderCode
+        && incoming().userId == existing().userId
+        && incoming().userEmail == existing().userEmail
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'paymentStatus', 'paymentReason', 'trackingNote', 'orderStatus', 'adminNote', 'utrNumber', 'updatedAt'
+        ]);
+      allow delete: if isValidOrderCode(orderId) && isAdmin();
+    }
+
+    // Public non-PII live tracking projection synchronized atomically with /orders
+    match /order_status/{orderId} {
+      allow get: if isValidOrderCode(orderId);
+      allow list: if isAdmin();
+      allow create: if isValidOrderCode(orderId)
+        && isValidOrderStatus(incoming(), orderId)
+        && (!isSignedIn() || !isUserBanned(request.auth.uid))
+        && incoming().orderStatus == 'new'
+        && (!('paymentReason' in incoming()) || incoming().paymentReason == '')
+        && (!('trackingNote' in incoming()) || incoming().trackingNote == '')
+        && (
+          (incoming().paymentMethod == 'upi' && incoming().paymentStatus == 'pending_verification')
+          || (incoming().paymentMethod == 'cod' && incoming().paymentStatus == 'cod')
+        )
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/orders/$(orderId))
+        && getAfter(/databases/$(database)/documents/orders/$(orderId)).data.totalAmount == incoming().totalAmount
+        && getAfter(/databases/$(database)/documents/orders/$(orderId)).data.product == incoming().product
+        && getAfter(/databases/$(database)/documents/orders/$(orderId)).data.qty == incoming().qty
+        && getAfter(/databases/$(database)/documents/orders/$(orderId)).data.paymentMethod == incoming().paymentMethod
+        && getAfter(/databases/$(database)/documents/orders/$(orderId)).data.paymentStatus == incoming().paymentStatus;
+      allow update: if isValidOrderCode(orderId)
+        && isValidOrderStatus(incoming(), orderId)
+        && isAdmin()
+        && incoming().orderCode == existing().orderCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'paymentStatus', 'paymentReason', 'trackingNote', 'orderStatus', 'updatedAt'
+        ]);
+      allow delete: if isValidOrderCode(orderId) && isAdmin();
+    }
+
+    // Customer reviews: public create (unapproved; banned signed-in users blocked), public read only when approved
+    match /reviews/{reviewId} {
+      allow get: if isValidId(reviewId) && (existing().approved == true || isAdmin());
+      allow list: if resource.data.approved == true || isAdmin();
+      allow create: if isValidId(reviewId)
+        && isValidReview(incoming())
+        && (!isSignedIn() || !isUserBanned(request.auth.uid))
+        && incoming().approved == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(reviewId)
+        && isValidReview(incoming())
+        && isAdmin()
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['approved', 'updatedAt']);
+      allow delete: if isValidId(reviewId) && isAdmin();
+    }
+
+    // Feedback & bulk inquiries (contains optional contact PII -> admin-only read)
+    match /feedback/{feedbackId} {
+      allow get: if isValidId(feedbackId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(feedbackId)
+        && isValidFeedback(incoming())
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(feedbackId)
+        && isValidFeedback(incoming())
+        && isAdmin()
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isValidId(feedbackId) && isAdmin();
+    }
+
+    // Additional admin allowlist managed exclusively by verified admins
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(uid)
+        && isValidAdmin(incoming())
+        && isAdmin()
+        && incoming().addedAt == request.time;
+      allow update: if isValidId(uid)
+        && isValidAdmin(incoming())
+        && isAdmin()
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email']);
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+  }
+}
