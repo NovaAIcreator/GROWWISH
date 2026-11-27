@@ -250,7 +250,7 @@ function getInitialLang(): Lang {
 }
 
 function getViewFromPath(): ViewMode {
-  const path = window.location.pathname;
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/admin') return 'admin';
   if (path === '/thanks') return 'thanks';
   return 'store';
@@ -369,8 +369,23 @@ export default function App() {
     pendingFreshLoginRef.current = true;
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err) {
+    } catch (err: unknown) {
       pendingFreshLoginRef.current = false;
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code?: string }).code || '')
+          : '';
+      if (code === 'auth/unauthorized-domain') {
+        const host = window.location.hostname;
+        throw new Error(
+          `Add "${host}" to Firebase Console → Authentication → Settings → Authorized domains to enable Google Sign-In on this domain.`,
+        );
+      }
+      if (code === 'auth/popup-blocked') {
+        throw new Error(
+          'Browser blocked the Google Sign-In popup. Please allow popups for this site and try again.',
+        );
+      }
       throw err;
     }
   };
