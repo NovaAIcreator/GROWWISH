@@ -27,14 +27,29 @@ import {
   handleFirestoreError,
   OperationType,
 } from './firebase';
+import {
+  Eye,
+  PackageSearch,
+  ShoppingBag,
+  Sparkles,
+  User as UserIcon,
+} from 'lucide-react';
 import { UpiPaymentBox } from './components/UpiPaymentBox';
 import { OrderTrackerModal } from './components/OrderTrackerModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AuthAccountModal } from './components/AuthAccountModal';
+import { CardStudio } from './components/CardStudio';
+import { BloomSimulator } from './components/BloomSimulator';
+import {
+  DesignItem,
+  DesignQuickViewModal,
+} from './components/DesignQuickViewModal';
+import { FaqSection } from './components/FaqSection';
 
 const T = {
   en: {
     n0: 'Designs',
+    nStudio: 'Studio',
     n1: 'Packs',
     n2: 'Reviews',
     n4: 'How it works',
@@ -42,6 +57,8 @@ const T = {
     track: 'Track',
     signIn: 'Sign in',
     admin: 'Admin',
+    inspect: 'Details',
+    studioBtn: 'Customize live',
     hk: 'Handmade plantable seed paper',
     h2: 'Greeting cards pressed with wildflower seeds. Read it, plant it, and watch your words bloom.',
     shop: 'See the designs',
@@ -136,6 +153,7 @@ const T = {
   },
   hi: {
     n0: 'डिज़ाइन',
+    nStudio: 'स्टूडियो',
     n1: 'पैक',
     n2: 'रिव्यू',
     n4: 'कैसे काम करता है',
@@ -143,6 +161,8 @@ const T = {
     track: 'ट्रैक',
     signIn: 'लॉगिन',
     admin: 'Admin',
+    inspect: 'विवरण',
+    studioBtn: 'लाइव डिज़ाइन करें',
     hk: 'हाथ से बना प्लांटेबल सीड पेपर',
     h2: 'वाइल्डफ्लावर बीजों वाले ग्रीटिंग कार्ड। पढ़िए, मिट्टी में लगाइए, और अपने शब्दों को खिलते देखिए।',
     shop: 'डिज़ाइन देखें',
@@ -294,9 +314,15 @@ export default function App() {
   const [trackerOpen, setTrackerOpen] = useState<boolean>(false);
   const [trackerInitialCode, setTrackerInitialCode] = useState<string>('');
   const [approvedReviews, setApprovedReviews] = useState<ReviewRecord[]>([]);
+  const [quickViewDesign, setQuickViewDesign] = useState<DesignItem | null>(
+    null,
+  );
+  const [scrollProgress, setScrollProgress] = useState<number>(0);
+  const [storeToast, setStoreToast] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const pendingFreshLoginRef = useRef<boolean>(false);
+  const toastTimerRef = useRef<number | null>(null);
 
   const t = T[lang];
   const currentPack = PRODUCTS[selectedPackIdx] || PRODUCTS[0];
@@ -462,6 +488,56 @@ export default function App() {
     nodes.forEach((n) => io.observe(n));
     return () => io.disconnect();
   }, [view]);
+
+  useEffect(() => {
+    if (view !== 'store') return;
+    const onScroll = () => {
+      const max =
+        document.documentElement.scrollHeight - window.innerHeight || 1;
+      setScrollProgress(Math.min(1, Math.max(0, window.scrollY / max)));
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [view]);
+
+  const showToast = (msg: string) => {
+    setStoreToast(msg);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setStoreToast(''), 3400);
+  };
+
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleApplyFromStudio = (designId: string, customMessage: string) => {
+    setSelectedDesign(designId);
+    setCustomerMessage(customMessage);
+    showToast(
+      lang === 'hi'
+        ? 'आपका कस्टम कार्ड और संदेश ऑर्डर फॉर्म में जुड़ गया है।'
+        : 'Your custom card & handwritten note have been added to the order form.',
+    );
+    scrollToSection('order');
+  };
+
+  const handleApplyPackFromCalc = (
+    packIdx: number,
+    nextQty: number,
+    occasionNote: string,
+  ) => {
+    setSelectedPackIdx(packIdx);
+    setQty(String(nextQty));
+    setCustomerMessage((prev) => (prev.trim() ? prev : occasionNote));
+    showToast(
+      lang === 'hi'
+        ? 'सबसे किफायती पैक और मात्रा ऑर्डर फॉर्म में सेट हो गई।'
+        : 'Recommended pack and quantity applied to your order form.',
+    );
+    scrollToSection('order');
+  };
 
   const handleToggleLang = () => {
     setLang((prev) => (prev === 'en' ? 'hi' : 'en'));
@@ -757,6 +833,11 @@ export default function App() {
   return (
     <>
       <nav>
+        <div
+          className="scroll-progress-bar"
+          aria-hidden="true"
+          style={{ transform: `scaleX(${scrollProgress})` }}
+        />
         <div className="w">
           <a className="logo" href="#top" aria-label="GrowWish home">
             <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -774,9 +855,8 @@ export default function App() {
 
           <div className="nav-mid">
             <a href="#designs">{t.n0}</a>
-            <a href="#how">{t.n4}</a>
+            <a href="#studio">{t.nStudio}</a>
             <a href="#packs">{t.n1}</a>
-            <a href="#voices">{t.n2}</a>
             <a
               href="#track"
               onClick={(e) => {
@@ -862,7 +942,11 @@ export default function App() {
             </h1>
             <p className="lead">{t.h2}</p>
             <div className="cta">
-              <a className="btn clay" href="#designs">
+              <a className="btn clay" href="#studio">
+                <Sparkles size={16} />
+                <span>{t.studioBtn}</span>
+              </a>
+              <a className="btn ghost" href="#designs">
                 <span>{t.shop}</span>
                 <svg
                   viewBox="0 0 24 24"
@@ -873,9 +957,6 @@ export default function App() {
                 >
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
-              </a>
-              <a className="btn ghost" href="#film">
-                {t.watch}
               </a>
             </div>
             <div className="stats tabular-nums">
@@ -894,37 +975,73 @@ export default function App() {
             </div>
           </div>
 
-          <div className="fan" aria-hidden="true">
-            <figure className="f1">
+          <div className="fan">
+            <figure
+              className="f1 fan-interactive"
+              role="button"
+              tabIndex={0}
+              aria-label={DESIGNS[0].n[lang]}
+              onClick={() => setQuickViewDesign(DESIGNS[0])}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setQuickViewDesign(DESIGNS[0]);
+                }
+              }}
+            >
               <img
                 src="/img/thank-you-floral.webp"
                 width={736}
                 height={1075}
-                alt=""
+                alt={DESIGNS[0].n[lang]}
                 fetchPriority="high"
               />
               <figcaption>{t.c1}</figcaption>
             </figure>
-            <figure className="f2">
+            <figure
+              className="f2 fan-interactive"
+              role="button"
+              tabIndex={0}
+              aria-label={DESIGNS[1].n[lang]}
+              onClick={() => setQuickViewDesign(DESIGNS[1])}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setQuickViewDesign(DESIGNS[1]);
+                }
+              }}
+            >
               <img
                 src="/img/helping-me-grow.webp"
                 width={736}
                 height={981}
-                alt=""
+                alt={DESIGNS[1].n[lang]}
                 fetchPriority="high"
               />
               <figcaption>{t.c2}</figcaption>
             </figure>
-            <figure className="f3">
+            <figure
+              className="f3 fan-interactive"
+              role="button"
+              tabIndex={0}
+              aria-label={DESIGNS[2].n[lang]}
+              onClick={() => setQuickViewDesign(DESIGNS[2])}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setQuickViewDesign(DESIGNS[2]);
+                }
+              }}
+            >
               <img
                 src="/img/happy-birthday.webp"
                 width={736}
                 height={574}
-                alt=""
+                alt={DESIGNS[2].n[lang]}
               />
               <figcaption>{t.c3}</figcaption>
             </figure>
-            <div className="seedtag">
+            <div className="seedtag" aria-hidden="true">
               <div>
                 <span>{t.tagb}</span>
                 <span
@@ -974,7 +1091,19 @@ export default function App() {
           <div className="designs" id="dgrid">
             {DESIGNS.map((d, i) => (
               <article className="design rv in" key={d.id}>
-                <div className="ph">
+                <div
+                  className="ph ph-clickable"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${d.n[lang]} — ${t.inspect}`}
+                  onClick={() => setQuickViewDesign(d)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setQuickViewDesign(d);
+                    }
+                  }}
+                >
                   <img
                     src={d.img}
                     width={d.w}
@@ -983,22 +1112,43 @@ export default function App() {
                     decoding="async"
                     alt={d.n[lang]}
                   />
+                  <span className="ph-inspect">
+                    <Eye size={14} /> {t.inspect}
+                  </span>
                 </div>
                 <span className="no">No. 0{i + 1}</span>
                 <h3>{d.n[lang]}</h3>
                 <p className="tag">{d.t[lang]}</p>
-                <a
-                  className="btn"
-                  href="#order"
-                  onClick={() => setSelectedDesign(d.id)}
-                >
-                  {t.pick}
-                </a>
+                <div className="design-actions">
+                  <a
+                    className="btn"
+                    href="#order"
+                    onClick={() => setSelectedDesign(d.id)}
+                  >
+                    {t.pick}
+                  </a>
+                  <button
+                    type="button"
+                    className="design-studio-link"
+                    onClick={() => {
+                      setSelectedDesign(d.id);
+                      scrollToSection('studio');
+                    }}
+                  >
+                    <Sparkles size={14} /> {t.nStudio}
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         </div>
       </section>
+
+      <CardStudio
+        lang={lang}
+        selectedDesign={selectedDesign}
+        onApplyToOrder={handleApplyFromStudio}
+      />
 
       <section id="film" className="film rv">
         <div className="w">
@@ -1153,6 +1303,8 @@ export default function App() {
           </div>
         </div>
       </section>
+
+      <BloomSimulator lang={lang} onApplyPack={handleApplyPackFromCalc} />
 
       <section
         id="packs"
@@ -1692,6 +1844,8 @@ export default function App() {
         </div>
       </section>
 
+      <FaqSection lang={lang} />
+
       <footer>
         <div className="w">
           <p className="big">
@@ -1761,6 +1915,59 @@ export default function App() {
         </svg>
         WhatsApp
       </a>
+
+      {/* Compact mobile thumb-zone quick dock */}
+      <div className="mobile-dock" role="navigation" aria-label="Quick actions">
+        <a href="#studio" className="mobile-dock-item">
+          <Sparkles size={17} />
+          <span>{t.nStudio}</span>
+        </a>
+        <button
+          type="button"
+          className="mobile-dock-item"
+          onClick={() => {
+            setTrackerInitialCode('');
+            setTrackerOpen(true);
+          }}
+        >
+          <PackageSearch size={17} />
+          <span>{t.track}</span>
+        </button>
+        <button
+          type="button"
+          className="mobile-dock-item"
+          onClick={() => setAuthModalOpen(true)}
+        >
+          <UserIcon size={17} />
+          <span>{user ? firstName : t.signIn}</span>
+        </button>
+        <a href="#order" className="mobile-dock-item mobile-dock-cta">
+          <ShoppingBag size={17} />
+          <span>{t.n5}</span>
+        </a>
+      </div>
+
+      {storeToast && (
+        <div className="store-toast" role="status" aria-live="polite">
+          {storeToast}
+        </div>
+      )}
+
+      {quickViewDesign && (
+        <DesignQuickViewModal
+          design={quickViewDesign}
+          lang={lang}
+          onClose={() => setQuickViewDesign(null)}
+          onCustomizeInStudio={(id) => {
+            setSelectedDesign(id);
+            scrollToSection('studio');
+          }}
+          onOrderDesign={(id) => {
+            setSelectedDesign(id);
+            scrollToSection('order');
+          }}
+        />
+      )}
 
       {trackerOpen && (
         <OrderTrackerModal
